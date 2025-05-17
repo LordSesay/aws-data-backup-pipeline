@@ -61,7 +61,18 @@ Traditional backup solutions often:
 ---
 
 ## 🛠 Folder Structure
-
+aws-data-backup-pipeline/
+├── lambda/
+│ └── handler.py
+├── terraform/
+│ ├── s3.tf
+│ ├── lambda.tf
+│ ├── dynamodb.tf
+│ └── main.tf
+├── assets/
+│ └── aws-backup-pipeline.png
+├── README.md
+└── .gitignore
 
 ---
 
