@@ -1,55 +1,77 @@
 # AWS Data Backup Pipeline
 
-## Problem Statement
+## Overview
 
-Organizations face critical challenges in data protection and disaster recovery:
-- **Data Loss Risk**: Critical business data stored across multiple AWS services without automated backup
-- **Manual Processes**: Time-consuming manual backup procedures prone to human error
-- **Compliance Requirements**: Need for automated, scheduled backups to meet regulatory standards
-- **Cost Optimization**: Inefficient backup strategies leading to unnecessary storage costs
-- **Recovery Time**: Slow disaster recovery processes affecting business continuity
+This project is an evolving AWS-based backup and disaster recovery platform designed to protect critical infrastructure across EC2, RDS, and S3.
 
-## Solution Overview
+The current implementation focuses on:
 
-This automated AWS data backup pipeline provides:
-- **Automated Scheduling**: Lambda-triggered backups on configurable schedules
-- **Multi-Service Support**: Backs up EC2 instances, RDS databases, and S3 buckets
-- **Cost-Effective Storage**: Intelligent tiering using S3 Glacier for long-term retention
-- **Monitoring & Alerts**: CloudWatch integration with SNS notifications
-- **Easy Recovery**: Streamlined restore processes with documented procedures
+- Automated snapshot creation for EC2 and RDS
+- S3 data backup into a centralized backup bucket
+- Lifecycle policies for cost optimization (Glacier / Deep Archive)
+- Restore workflows for disaster recovery scenarios
+- SNS notifications for backup status
 
-## Architecture
+This project is being actively expanded toward a production-grade architecture that includes:
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   CloudWatch    │───▶│   Lambda Trigger │───▶│  Backup Lambda  │
-│   Events        │    │   (Scheduler)    │    │   Function      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                         │
-                                                         ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│      SNS        │◀───│   CloudWatch     │◀───│  Target AWS     │
-│  Notifications  │    │    Logs          │    │   Services      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                         │
-                                                         ▼
-                                               ┌─────────────────┐
-                                               │   S3 Backup     │
-                                               │    Storage      │
-                                               │  (with Glacier) │
-                                               └─────────────────┘
-```
+- Event-driven scheduling (EventBridge + Lambda)
+- Cross-region backup replication
+- Infrastructure as Code (Terraform)
+- Centralized logging and monitoring
+- Compliance and reporting automation
+
+## Current Architecture (Implemented)
+
+- Python Backup Manager (boto3)
+- EC2 Snapshot Automation
+- RDS Snapshot Automation
+- S3 Backup Copy Process
+- Backup S3 Bucket with Lifecycle Policies
+- SNS Notifications
+
+## Target Architecture (In Progress)
+
+- EventBridge → Scheduled backup triggers
+- AWS Lambda → Serverless execution layer
+- S3 Cross-Region Replication → Disaster recovery
+- CloudWatch → Logging and alerting
+- Terraform → Infrastructure provisioning
+- IAM Roles → Least privilege security model
 
 ## Features
 
 - ✅ **Automated EC2 Snapshot Creation**
 - ✅ **RDS Database Backups**
-- ✅ **S3 Cross-Region Replication**
+- ✅ **S3 Backup Copy into Centralized Backup Bucket**
 - ✅ **Lifecycle Management** (S3 → Glacier → Deep Archive)
 - ✅ **Backup Verification & Validation**
-- ✅ **Cost Optimization Reports**
-- ✅ **Disaster Recovery Testing**
-- ✅ **Compliance Reporting**
+- ✅ **Disaster Recovery Restore Workflows**
+- ✅ **SNS Backup Notifications**
+
+**Planned Enhancement:**
+- Implement native S3 Cross-Region Replication (CRR)
+
+## Example Output
+
+Backup Execution Result:
+
+```json
+{
+  "ec2_snapshots_created": 2,
+  "rds_snapshots_created": 1,
+  "s3_objects_copied": 145,
+  "status": "SUCCESS"
+}
+```
+
+## Testing Coverage
+
+- Backup workflow execution
+- S3 backup validation
+- Cleanup and lifecycle logic
+- Restore functionality
+
+Tests are located in `/tests` directory.
 
 ## Prerequisites
 
@@ -166,12 +188,9 @@ restore_mgr.restore_rds_from_backup('my-database', '2024-01-15')
 
 ## Monitoring & Alerts
 
-The pipeline includes comprehensive monitoring:
-
-- **CloudWatch Dashboards**: Visual monitoring of backup operations
 - **SNS Notifications**: Email/SMS alerts for backup failures
+- **CloudWatch Logs**: Backup operation logging
 - **Cost Tracking**: Monthly backup cost reports
-- **Compliance Reports**: Automated backup compliance documentation
 
 ## Security Considerations
 
@@ -184,7 +203,7 @@ The pipeline includes comprehensive monitoring:
 
 - **Intelligent Tiering**: Automatic transition to cheaper storage classes
 - **Lifecycle Policies**: Automated deletion of old backups
-- **Cross-Region Optimization**: Strategic backup placement
+- **Centralized Backup Storage**: Strategic bucket placement to minimize transfer costs
 - **Monitoring**: Cost alerts and optimization recommendations
 
 ## Troubleshooting
@@ -218,7 +237,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- 📧 Email: [your-email@domain.com]
+- 📧 Email: [sesay.malcolm.dev@gmail.com]
 - 🐛 Issues: [GitHub Issues](https://github.com/LordSesay/aws-data-backup-pipeline/issues)
 - 📖 Documentation: [Wiki](https://github.com/LordSesay/aws-data-backup-pipeline/wiki)
 
