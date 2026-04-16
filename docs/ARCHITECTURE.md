@@ -1,338 +1,193 @@
-# AWS Data Backup Pipeline Architecture
+# Architecture — AWS Smart Backup Pipeline
 
 ## Overview
 
-The AWS Data Backup Pipeline is designed as a serverless, event-driven architecture that provides automated, cost-effective backup solutions for multiple AWS services. The system emphasizes reliability, scalability, and cost optimization while maintaining security best practices.
+A serverless, event-driven backup system focused on protecting tagged EC2 workloads through automated EBS snapshots, retention cleanup, alerting, and monitoring. Infrastructure is provisioned via Terraform.
 
-## High-Level Architecture
+## Primary Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           AWS Data Backup Pipeline                              │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────────────┐ │
-│  │   CloudWatch    │───▶│   EventBridge    │───▶│      Lambda Function       │ │
-│  │   Events        │    │   (Scheduler)    │    │   (Backup Orchestrator)    │ │
-│  │                 │    │                  │    │                             │ │
-│  │ • Daily: 2 AM   │    │ • Cron Rules     │    │ • backup_manager.py         │ │
-│  │ • Weekly: Sun   │    │ • Event Routing  │    │ • Multi-service support     │ │
-│  │ • Monthly: 1st  │    │ • Retry Logic    │    │ • Error handling            │ │
-│  └─────────────────┘    └──────────────────┘    └─────────────────────────────┘ │
-│                                                             │                   │
-│                                                             ▼                   │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                        Target AWS Services                                  │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │ │
-│  │  │      EC2        │  │      RDS        │  │           S3                │ │ │
-│  │  │                 │  │                 │  │                             │ │ │
-│  │  │ • EBS Snapshots │  │ • DB Snapshots  │  │ • Cross-region replication  │ │ │
-│  │  │ • AMI Creation  │  │ • Point-in-time │  │ • Object versioning         │ │ │
-│  │  │ • Tagging       │  │ • Automated     │  │ • Lifecycle policies        │ │ │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                             │
-│                                    ▼                                             │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                         Backup Storage Layer                               │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │                    S3 Backup Bucket                                    │ │ │
-│  │  │                                                                         │ │ │
-│  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │ │ │
-│  │  │  │   Standard  │─▶│   IA (30d)  │─▶│ Glacier(90d)│─▶│Deep Archive │  │ │ │
-│  │  │  │   Storage   │  │   Storage   │  │   Storage   │  │  (365d+)    │  │ │ │
-│  │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  │ │ │
-│  │  │                                                                         │ │ │
-│  │  │  • Versioning enabled          • Server-side encryption (SSE-S3)      │ │ │
-│  │  │  • Cross-region replication    • Access logging                       │ │ │
-│  │  │  • MFA delete protection       • Intelligent tiering                  │ │ │
-│  │  └─────────────────────────────────────────────────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                             │
-│                                    ▼                                             │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                    Monitoring & Alerting Layer                             │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │ │
-│  │  │   CloudWatch    │  │       SNS       │  │      CloudWatch Logs       │ │ │
-│  │  │                 │  │                 │  │                             │ │ │
-│  │  │ • Custom metrics│  │ • Email alerts  │  │ • Lambda execution logs     │ │ │
-│  │  │ • Dashboards    │  │ • SMS alerts    │  │ • Backup operation logs     │ │ │
-│  │  │ • Alarms        │  │ • Slack webhook │  │ • Error tracking            │ │ │
-│  │  │ • Cost tracking │  │ • PagerDuty     │  │ • Performance metrics       │ │ │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                    AWS Smart Backup Pipeline                         │
+│                                                                      │
+│  ┌─────────────┐    ┌─────────────┐    ┌──────────────────────────┐ │
+│  │ EventBridge  │───▶│   Lambda    │───▶│  EC2 (backup=true)      │ │
+│  │ cron(0 2 *)  │    │  Backup Fn  │    │  ├─ Discover instances  │ │
+│  └─────────────┘    └──────┬──────┘    │  ├─ Create EBS snapshots│ │
+│                            │           │  └─ Tag with metadata   │ │
+│                            │           └──────────────────────────┘ │
+│                            │                                        │
+│                            ▼                                        │
+│  ┌─────────────┐    ┌─────────────┐    ┌──────────────────────────┐ │
+│  │ EventBridge  │───▶│   Lambda    │───▶│  Retention Cleanup      │ │
+│  │ cron(0 4 *)  │    │ Cleanup Fn  │    │  └─ Delete expired      │ │
+│  └─────────────┘    └──────┬──────┘    │     snapshots            │ │
+│                            │           └──────────────────────────┘ │
+│                            │                                        │
+│                            ▼                                        │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                  Monitoring & Alerting                        │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐ │   │
+│  │  │ CloudWatch   │  │    SNS      │  │  CloudWatch Logs     │ │   │
+│  │  │ Metrics      │  │  Alerts     │  │  Execution traces    │ │   │
+│  │  └─────────────┘  └─────────────┘  └──────────────────────┘ │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Component Details
 
-### 1. Scheduling Layer
+### 1. Scheduling — EventBridge
 
-**CloudWatch Events / EventBridge**
-- **Purpose**: Trigger backup operations on predefined schedules
-- **Configuration**: 
-  - Daily backups: `cron(0 2 * * ? *)` (2 AM UTC)
-  - Weekly full backups: `cron(0 1 ? * SUN *)`
-  - Monthly cleanup: `cron(0 0 1 * ? *)`
-- **Features**:
-  - Multiple schedule support
-  - Event-driven architecture
-  - Automatic retry mechanisms
-  - Dead letter queue integration
+| Rule | Schedule | Payload |
+|------|----------|---------|
+| EC2 Backup | `cron(0 2 * * ? *)` | `{"backup_type": "ec2"}` |
+| Cleanup | `cron(0 4 * * ? *)` | `{"backup_type": "cleanup"}` |
+| RDS Backup (expansion) | `cron(0 3 * * ? *)` | `{"backup_type": "rds"}` |
+| S3 Backup (expansion) | `cron(0 1 * * ? *)` | `{"backup_type": "s3"}` |
 
-### 2. Orchestration Layer
+### 2. Execution — Lambda
 
-**Lambda Function (backup_manager.py)**
-- **Runtime**: Python 3.9
+- **Runtime**: Python 3.11
 - **Memory**: 512 MB
 - **Timeout**: 15 minutes
-- **Concurrency**: Reserved capacity for critical operations
-- **Key Functions**:
-  - `backup_ec2_instances()`: Creates EBS snapshots and AMIs
-  - `backup_rds_databases()`: Creates manual DB snapshots
-  - `backup_s3_buckets()`: Performs cross-region replication
-  - `cleanup_old_backups()`: Removes expired backups
-  - `run_full_backup()`: Orchestrates complete backup cycle
+- **Handler**: `lambda_handler.lambda_handler`
 
-### 3. Target Services
+The Lambda function routes on `backup_type`:
 
-**EC2 Backup Strategy**
-```
-EC2 Instance → EBS Volumes → Snapshots → AMI (optional)
-     │              │            │
-     │              │            └─ Tagged with metadata
-     │              └─ Incremental snapshots
-     └─ Instance metadata preserved
-```
+| Type | Action |
+|------|--------|
+| `ec2` (default) | Discover tagged instances → create EBS snapshots → tag → notify |
+| `cleanup` | Find expired snapshots by retention policy → delete → notify |
+| `rds` | Create manual RDS snapshots (expansion) |
+| `s3` | Copy objects to backup bucket (expansion) |
+| `full` | Run all of the above sequentially |
 
-**RDS Backup Strategy**
-```
-RDS Instance → Manual Snapshots → Cross-region copy (optional)
-     │              │                    │
-     │              │                    └─ Disaster recovery
-     │              └─ Point-in-time recovery capability
-     └─ Automated backup retention
-```
-
-**S3 Backup Strategy**
-```
-Source Bucket → Backup Bucket → Lifecycle Policies → Archive Storage
-     │              │                 │                    │
-     │              │                 │                    └─ Cost optimization
-     │              │                 └─ Automated transitions
-     │              └─ Versioning enabled
-     └─ Object-level replication
-```
-
-### 4. Storage Optimization
-
-**S3 Lifecycle Management**
-```
-Day 0-7:    S3 Standard        ($0.023/GB/month)
-Day 7-30:   S3 IA             ($0.0125/GB/month)
-Day 30-90:  S3 Glacier        ($0.004/GB/month)
-Day 90+:    S3 Deep Archive   ($0.00099/GB/month)
-```
-
-**Cost Optimization Features**:
-- Intelligent tiering based on access patterns
-- Automated lifecycle transitions
-- Compression for text-based backups
-- Deduplication for similar snapshots
-- Multi-part upload for large files
-
-### 5. Security Architecture
-
-**IAM Security Model**
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Security Layers                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
-│  │  Lambda Role    │  │  S3 Policies    │  │ Encryption  │ │
-│  │                 │  │                 │  │             │ │
-│  │ • Least         │  │ • Bucket        │  │ • SSE-S3    │ │
-│  │   privilege     │  │   policies      │  │ • SSE-KMS   │ │
-│  │ • Resource      │  │ • Object ACLs   │  │ • In-transit│ │
-│  │   restrictions  │  │ • Cross-account │  │ • At-rest   │ │
-│  │ • Time-based    │  │   access        │  │ • Key       │ │
-│  │   access        │  │ • VPC endpoints │  │   rotation  │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Security Features**:
-- Encryption at rest (AES-256)
-- Encryption in transit (TLS 1.2+)
-- IAM roles with least privilege
-- VPC endpoints for private communication
-- CloudTrail integration for audit logs
-- MFA delete protection for critical backups
-
-### 6. Monitoring & Observability
-
-**CloudWatch Integration**
-```
-Metrics Collection → Dashboards → Alarms → Notifications
-       │                │          │           │
-       │                │          │           └─ SNS Topics
-       │                │          └─ Threshold-based
-       │                └─ Visual monitoring
-       └─ Custom metrics + AWS metrics
-```
-
-**Key Metrics Monitored**:
-- Backup success/failure rates
-- Backup duration and performance
-- Storage costs and utilization
-- Recovery time objectives (RTO)
-- Recovery point objectives (RPO)
-
-## Data Flow
-
-### Backup Process Flow
+### 3. EC2 Backup Logic
 
 ```
-1. CloudWatch Event Trigger
-   ↓
-2. Lambda Function Invocation
-   ↓
-3. Service Discovery
-   │
-   ├─ EC2: List running instances
-   ├─ RDS: List database instances  
-   └─ S3: List source buckets
-   ↓
-4. Parallel Backup Execution
-   │
-   ├─ EC2: Create EBS snapshots
-   ├─ RDS: Create DB snapshots
-   └─ S3: Cross-region replication
-   ↓
-5. Metadata Tagging
-   ↓
-6. Verification & Validation
-   ↓
-7. Notification & Logging
-   ↓
-8. Cleanup Old Backups
+EC2 Instances (backup=true tag)
+       │
+       ▼
+  For each instance:
+       │
+       ├─ Get attached EBS volumes
+       │
+       ├─ Create snapshot per volume
+       │     Tags:
+       │       Name = backup-{instance_id}-{volume_id}
+       │       InstanceId = i-xxx
+       │       VolumeId = vol-xxx
+       │       BackupDate = ISO timestamp
+       │       AutomatedBackup = true
+       │
+       └─ Log result, continue on failure
+       │
+       ▼
+  SNS notification (success count / failure count)
 ```
 
-### Restore Process Flow
+### 4. Retention Cleanup Logic
 
 ```
-1. Restore Request (Manual/Automated)
-   ↓
-2. Backup Discovery & Validation
-   ↓
-3. Integrity Verification
-   ↓
-4. Resource Provisioning
-   │
-   ├─ EC2: AMI → New Instance
-   ├─ RDS: Snapshot → New DB
-   └─ S3: Object restoration
-   ↓
-5. Configuration Application
-   ↓
-6. Validation Testing
-   ↓
-7. Notification & Documentation
+Describe all self-owned snapshots
+       │
+       ▼
+  Filter: AutomatedBackup=true AND StartTime < (now - retention_days)
+       │
+       ▼
+  Delete each expired snapshot
+       │
+       ▼
+  Log deletion count
 ```
 
-## Scalability Considerations
+Default retention: 30 days (configurable via `BACKUP_RETENTION_DAYS`).
 
-### Horizontal Scaling
-- **Lambda Concurrency**: Auto-scaling based on workload
-- **Parallel Processing**: Multiple services backed up simultaneously
-- **Regional Distribution**: Multi-region backup support
-- **Queue-based Processing**: SQS integration for large workloads
+### 5. IAM Security Model
 
-### Performance Optimization
-- **Incremental Backups**: Only changed data backed up
-- **Compression**: Reduce storage requirements
-- **Bandwidth Optimization**: Transfer acceleration
-- **Caching**: Metadata caching for faster operations
+The Lambda execution role follows least-privilege:
 
-## Disaster Recovery Architecture
+| Permission | Scope |
+|------------|-------|
+| `ec2:DescribeInstances`, `ec2:CreateSnapshot`, `ec2:DeleteSnapshot`, `ec2:DescribeSnapshots`, `ec2:CreateTags` | EC2/EBS operations |
+| `sns:Publish` | Backup notifications |
+| `sts:GetCallerIdentity` | Account ID resolution |
+| `logs:*` | CloudWatch logging |
+| `rds:*Snapshot*`, `rds:Describe*` | RDS expansion |
+| `s3:Get*`, `s3:Put*`, `s3:List*` | S3 expansion |
 
-### Recovery Scenarios
+### 6. Monitoring
 
-**Scenario 1: Single Resource Failure**
+- **CloudWatch Logs**: Every Lambda invocation is logged with backup results
+- **SNS Alerts**: Sent on backup completion and failure
+- **CloudWatch Metrics**: Lambda invocation count, error count, duration
+
+## Data Flow — Backup
+
 ```
-Failed Resource → Identify Backup → Restore → Validate → Switch Traffic
+1. EventBridge fires cron trigger
+2. Lambda invoked with {"backup_type": "ec2"}
+3. Lambda calls ec2:DescribeInstances with tag filter backup=true
+4. For each instance, create EBS snapshot with metadata tags
+5. Send SNS notification with success/failure summary
+6. CloudWatch captures execution log
 ```
 
-**Scenario 2: Regional Outage**
+## Data Flow — Cleanup
+
 ```
-Primary Region Down → Cross-region Backup → Restore in DR Region → DNS Failover
+1. EventBridge fires cleanup trigger
+2. Lambda invoked with {"backup_type": "cleanup"}
+3. Lambda calls ec2:DescribeSnapshots (owner=self, tag=AutomatedBackup)
+4. Filter snapshots older than retention_days
+5. Delete expired snapshots
+6. Log cleanup results
 ```
 
-**Scenario 3: Complete Infrastructure Loss**
+## Data Flow — Restore
+
 ```
-Infrastructure Gone → Backup Inventory → Provision New → Restore All → Reconfigure
+1. Operator identifies snapshot to restore
+2. RestoreManager validates snapshot integrity
+3. AMI registered from snapshot
+4. New EC2 instance launched from AMI
+5. Instance tagged with restore metadata
 ```
 
-### Recovery Metrics
-- **RTO (Recovery Time Objective)**: < 4 hours
-- **RPO (Recovery Point Objective)**: < 24 hours
-- **Data Integrity**: 99.999999999% (11 9's)
-- **Availability**: 99.9% during recovery operations
+## Infrastructure (Terraform)
 
-## Cost Analysis
+All infrastructure is defined in `infra/`:
 
-### Monthly Cost Breakdown (Example: 100 GB data)
+| File | Purpose |
+|------|---------|
+| `main.tf` | Provider and version constraints |
+| `lambda.tf` | Lambda function resource |
+| `eventbridge.tf` | Scheduled triggers and permissions |
+| `iam.tf` | Execution role and policies |
+| `variables.tf` | Configurable inputs |
+| `outputs.tf` | Deployment outputs |
 
-| Component | Cost | Description |
-|-----------|------|-------------|
-| Lambda Execution | $2.50 | Daily backup operations |
-| S3 Standard (7 days) | $1.61 | Recent backup storage |
-| S3 IA (23 days) | $0.96 | Intermediate storage |
-| S3 Glacier (60 days) | $0.67 | Long-term storage |
-| S3 Deep Archive (275 days) | $0.75 | Archive storage |
-| Data Transfer | $1.80 | Cross-region replication |
-| CloudWatch | $0.50 | Monitoring and logs |
-| SNS | $0.10 | Notifications |
-| **Total** | **$8.89** | **Monthly backup cost** |
+## Expansion Modules
 
-### Cost Optimization Strategies
-1. **Lifecycle Policies**: Automatic tier transitions
-2. **Compression**: Reduce storage footprint
-3. **Deduplication**: Eliminate redundant data
-4. **Regional Optimization**: Strategic backup placement
-5. **Retention Policies**: Automated cleanup
+These are implemented but secondary to the core EC2/EBS backup flow:
 
-## Security Compliance
+### RDS Snapshot Automation
+- Creates manual DB snapshots with metadata tags
+- Cleanup deletes expired RDS snapshots
+- Triggered on separate EventBridge schedule
 
-### Compliance Standards Supported
-- **SOC 2 Type II**: Operational security controls
-- **ISO 27001**: Information security management
-- **GDPR**: Data protection and privacy
-- **HIPAA**: Healthcare data protection
-- **PCI DSS**: Payment card industry standards
-
-### Security Controls
-- **Access Control**: Role-based access management
-- **Audit Logging**: Complete operation trails
-- **Encryption**: End-to-end data protection
-- **Network Security**: VPC isolation and endpoints
-- **Incident Response**: Automated alerting and response
+### S3 Bucket Backup
+- Copies objects from source buckets to centralized backup bucket
+- Backup bucket configured with lifecycle policies:
+  - Day 0–7: S3 Standard
+  - Day 7+: Glacier
+  - Day 30+: Deep Archive
+- Versioning enabled on backup bucket
 
 ## Future Enhancements
 
-### Planned Features
-1. **AI-Powered Optimization**: Machine learning for backup scheduling
-2. **Cross-Cloud Support**: Azure and GCP integration
-3. **Advanced Analytics**: Predictive failure analysis
-4. **Self-Healing**: Automatic recovery from failures
-5. **Blockchain Verification**: Immutable backup verification
-
-### Roadmap
-- **Q1 2024**: Enhanced monitoring and alerting
-- **Q2 2024**: Multi-cloud support
-- **Q3 2024**: AI-powered optimization
-- **Q4 2024**: Advanced security features
+- S3 Cross-Region Replication for disaster recovery
+- CloudWatch dashboards for backup visibility
+- Compliance reporting automation
+- Cost optimization analytics

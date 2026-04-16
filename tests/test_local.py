@@ -174,7 +174,7 @@ class TestBackupPipelineLocal(unittest.TestCase):
     @patch('boto3.client')
     def test_lambda_handler(self, mock_boto_client):
         """Test Lambda handler function"""
-        from backup_manager import lambda_handler
+        from lambda_handler import lambda_handler
         
         # Mock all AWS clients
         mock_boto_client.return_value = MagicMock()

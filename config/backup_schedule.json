@@ -1,92 +1,49 @@
 {
   "backup_schedules": {
-    "daily_backup": {
-      "description": "Daily backup of all resources",
+    "ec2_backup": {
+      "description": "Nightly EBS snapshots for tagged EC2 instances",
       "schedule_expression": "cron(0 2 * * ? *)",
       "enabled": true,
-      "backup_types": ["ec2", "rds", "s3"],
-      "retention_days": 7
-    },
-    "weekly_full_backup": {
-      "description": "Weekly comprehensive backup",
-      "schedule_expression": "cron(0 1 ? * SUN *)",
-      "enabled": true,
-      "backup_types": ["ec2", "rds", "s3"],
+      "backup_type": "ec2",
       "retention_days": 30
     },
-    "monthly_archive": {
-      "description": "Monthly long-term archive",
-      "schedule_expression": "cron(0 0 1 * ? *)",
-      "enabled": true,
-      "backup_types": ["ec2", "rds", "s3"],
-      "retention_days": 365
-    },
-    "cleanup_schedule": {
-      "description": "Cleanup old backups",
+    "cleanup": {
+      "description": "Delete expired automated snapshots",
       "schedule_expression": "cron(0 4 * * ? *)",
       "enabled": true,
-      "backup_types": ["cleanup"],
+      "backup_type": "cleanup",
+      "retention_days": 30
+    },
+    "rds_backup": {
+      "description": "Nightly RDS snapshots (expansion module)",
+      "schedule_expression": "cron(0 3 * * ? *)",
+      "enabled": false,
+      "backup_type": "rds",
+      "retention_days": 30
+    },
+    "s3_backup": {
+      "description": "Nightly S3 bucket sync (expansion module)",
+      "schedule_expression": "cron(0 1 * * ? *)",
+      "enabled": false,
+      "backup_type": "s3",
       "retention_days": 30
     }
   },
-  "backup_windows": {
-    "maintenance_window": {
-      "start_time": "02:00",
-      "end_time": "06:00",
-      "timezone": "UTC",
-      "description": "Preferred backup window to minimize impact"
-    }
+  "backup_window": {
+    "start_time": "01:00",
+    "end_time": "05:00",
+    "timezone": "UTC"
   },
-  "notification_settings": {
-    "success_notifications": false,
-    "failure_notifications": true,
-    "summary_notifications": true,
-    "notification_schedule": "cron(0 8 * * ? *)"
+  "notifications": {
+    "on_success": true,
+    "on_failure": true
   },
   "resource_filters": {
     "ec2": {
-      "include_tags": [
-        {"Key": "Backup", "Value": "true"},
-        {"Key": "Environment", "Value": "production"}
-      ],
-      "exclude_tags": [
-        {"Key": "Backup", "Value": "false"},
-        {"Key": "Temporary", "Value": "true"}
+      "required_tags": [
+        {"Key": "backup", "Value": "true"}
       ],
       "instance_states": ["running", "stopped"]
-    },
-    "rds": {
-      "include_tags": [
-        {"Key": "Backup", "Value": "true"}
-      ],
-      "exclude_tags": [
-        {"Key": "Backup", "Value": "false"}
-      ],
-      "engine_types": ["mysql", "postgres", "mariadb", "oracle-ee", "sqlserver-ex"]
-    },
-    "s3": {
-      "include_buckets": [],
-      "exclude_buckets": [
-        "aws-cloudtrail-logs-*",
-        "aws-config-*",
-        "*-temp-*"
-      ],
-      "minimum_size_mb": 1
-    }
-  },
-  "cost_optimization": {
-    "lifecycle_policies": {
-      "standard_to_ia_days": 7,
-      "ia_to_glacier_days": 30,
-      "glacier_to_deep_archive_days": 90
-    },
-    "compression": {
-      "enabled": true,
-      "file_types": [".txt", ".log", ".json", ".xml", ".csv"]
-    },
-    "deduplication": {
-      "enabled": true,
-      "hash_algorithm": "sha256"
     }
   }
 }
