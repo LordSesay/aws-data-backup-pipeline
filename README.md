@@ -20,6 +20,25 @@ This project is being actively expanded toward a production-grade architecture t
 - Centralized logging and monitoring
 - Compliance and reporting automation
 
+## Architecture Diagram
+
+![AWS Backup Architecture](./docs/aws_backup_architecture_diagram.png)
+
+This diagram represents the current and evolving architecture of the backup pipeline.
+
+**Flow Overview:**
+- EventBridge triggers scheduled backup jobs
+- Lambda executes backup logic across EC2, RDS, and S3
+- Backups are stored in a centralized S3 bucket
+- Lifecycle policies optimize storage cost (Glacier / Deep Archive)
+- SNS provides alerting for backup success/failure
+- CloudWatch captures logs and metrics for monitoring
+
+> Note: Cross-region replication and Terraform-based provisioning are part of the next implementation phase.
+
+> Current implementation includes core backup logic and lifecycle management.
+> Monitoring, compliance reporting, and infrastructure automation are being actively implemented.
+
 ## Current Architecture (Implemented)
 
 - Python Backup Manager (boto3)
