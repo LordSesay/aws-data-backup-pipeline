@@ -2,15 +2,27 @@
 
 ## Problem
 
-Businesses lose money and operational continuity when critical EC2-hosted workloads are not backed up consistently, tagged clearly, or cleaned up intelligently. Manual snapshot management is error-prone, expensive when forgotten, and invisible when it fails.
+Businesses lose money and operational continuity when critical EC2-hosted workloads are not backed up consistently, tagged clearly, or cleaned up intelligently.
+
+Manual snapshot management is error-prone, expensive when forgotten, and invisible when it fails.
+
+---
 
 ## Solution
 
-An event-driven AWS backup system that protects tagged EC2 workloads from data loss through automated EBS snapshots, retention-based cleanup, failure alerting, and operational monitoring.
+An event-driven AWS backup system that protects tagged EC2 workloads from data loss through:
+
+- Automated EBS snapshots
+- Retention-based cleanup
+- Failure alerting
+- Operational monitoring
 
 The architecture is designed to expand into broader backup coverage for RDS and S3-based redundancy as the platform matures.
 
+---
+
 ## Architecture
+
 
 ```
 EventBridge (cron schedule)
@@ -35,33 +47,40 @@ Lambda Backup Function
 
 ![AWS Backup Architecture](./docs/aws_backup_architecture_diagram.png)
 
+---
 ## How It Works
 
-1. **EventBridge** triggers the backup Lambda on a nightly cron schedule
-2. **Lambda** queries EC2 for instances tagged `backup=true`
-3. For each matching instance, **EBS snapshots** are created for every attached volume
-4. Each snapshot is **tagged with metadata** (instance ID, volume ID, backup date, automated flag)
-5. A separate **cleanup run** deletes snapshots older than the configured retention period
-6. **SNS** sends notifications on backup completion or failure
-7. **CloudWatch** captures execution logs for operational visibility
+1. **EventBridge** triggers the backup Lambda on a scheduled cron expression  
+2. **Lambda** queries EC2 for instances tagged `backup=true`  
+3. **EBS snapshots** are created for all attached volumes  
+4. Snapshots are **tagged with metadata** (instance ID, volume ID, backup date)  
+5. A **cleanup process** deletes snapshots older than the retention threshold  
+6. **SNS** sends notifications on success or failure  
+7. **CloudWatch** captures logs and execution metrics  
+
+---
 
 ## Features
 
 - ✅ Tag-driven EC2 instance discovery (`backup=true`)
 - ✅ Automated EBS snapshot creation with metadata tagging
 - ✅ Retention-based snapshot cleanup
+- ✅ EventBridge scheduled execution
 - ✅ SNS failure and completion alerts
 - ✅ CloudWatch logging and monitoring
-- ✅ EventBridge scheduled execution
 - ✅ Terraform-managed infrastructure
 - ✅ Disaster recovery restore workflows
+
+---
 
 ## Expansion Modules (Secondary)
 
 - RDS snapshot automation
-- S3 bucket backup to centralized storage with lifecycle policies (Glacier → Deep Archive)
+- S3 backup to centralized storage with lifecycle policies (Glacier → Deep Archive)
 - Cross-region replication (planned)
 - Compliance reporting (planned)
+
+---
 
 ## Project Structure
 
@@ -91,13 +110,18 @@ Lambda Backup Function
     └── iam_policies.json      # IAM policy reference
 ```
 
+
+---
+
 ## Quick Start
 
 ### Prerequisites
 
-- AWS CLI configured with appropriate permissions
+- AWS CLI configured
 - Python 3.9+
-- Terraform >= 1.5 (for infrastructure deployment)
+- Terraform >= 1.5
+
+---
 
 ### 1. Clone and Install
 
@@ -105,7 +129,6 @@ Lambda Backup Function
 git clone https://github.com/LordSesay/aws-data-backup-pipeline.git
 cd aws-data-backup-pipeline
 pip install -r requirements.txt
-```
 
 ### 2. Configure Environment
 
@@ -217,6 +240,19 @@ python -m pytest tests/ -v
 # Local mock-based tests (no AWS credentials needed)
 python tests/test_local.py
 ```
+## Deployment Status
+
+Phase 1 infrastructure has been deployed successfully using Terraform.
+
+Active components:
+- AWS Lambda backup function
+- EventBridge EC2 backup schedule
+- EventBridge cleanup schedule
+- IAM execution role and policies
+
+Expansion components defined but currently disabled:
+- RDS backup schedule
+- S3 backup schedule
 
 ## License
 

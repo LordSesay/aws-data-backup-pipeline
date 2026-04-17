@@ -59,39 +59,44 @@ class BackupManager:
                     {'Name': 'instance-state-name', 'Values': ['running', 'stopped']}
                 ])
 
-            for reservation in instances['Reservations']:
-                for instance in reservation['Instances']:
-                    instance_id = instance['InstanceId']
-                    try:
-                        for block_device in instance.get('BlockDeviceMappings', []):
-                            volume_id = block_device['Ebs']['VolumeId']
-                            now = datetime.now()
+            all_instances = [
+                inst for res in instances['Reservations'] for inst in res['Instances']
+            ]
+            logger.info(f"Found {len(all_instances)} instances with backup tag")
 
-                            snapshot = self.ec2.create_snapshot(
-                                VolumeId=volume_id,
-                                Description=f'Automated backup — {instance_id} — {now.isoformat()}',
-                                TagSpecifications=[{
-                                    'ResourceType': 'snapshot',
-                                    'Tags': [
-                                        {'Key': 'Name', 'Value': f'backup-{instance_id}-{volume_id}'},
-                                        {'Key': 'InstanceId', 'Value': instance_id},
-                                        {'Key': 'VolumeId', 'Value': volume_id},
-                                        {'Key': 'BackupDate', 'Value': now.isoformat()},
-                                        {'Key': 'AutomatedBackup', 'Value': 'true'},
-                                    ]
-                                }]
-                            )
+            for instance in all_instances:
+                instance_id = instance['InstanceId']
+                logger.info(f"Processing instance: {instance_id}")
+                try:
+                    for block_device in instance.get('BlockDeviceMappings', []):
+                        volume_id = block_device['Ebs']['VolumeId']
+                        now = datetime.now()
 
-                            results['success'].append({
-                                'instance_id': instance_id,
-                                'volume_id': volume_id,
-                                'snapshot_id': snapshot['SnapshotId']
-                            })
-                            logger.info(f"Snapshot {snapshot['SnapshotId']} created for {instance_id}/{volume_id}")
+                        snapshot = self.ec2.create_snapshot(
+                            VolumeId=volume_id,
+                            Description=f'Automated backup — {instance_id} — {now.isoformat()}',
+                            TagSpecifications=[{
+                                'ResourceType': 'snapshot',
+                                'Tags': [
+                                    {'Key': 'Name', 'Value': f'backup-{instance_id}-{volume_id}'},
+                                    {'Key': 'InstanceId', 'Value': instance_id},
+                                    {'Key': 'VolumeId', 'Value': volume_id},
+                                    {'Key': 'BackupDate', 'Value': now.isoformat()},
+                                    {'Key': 'AutomatedBackup', 'Value': 'true'},
+                                ]
+                            }]
+                        )
 
-                    except Exception as e:
-                        logger.error(f"Failed to backup {instance_id}: {e}")
-                        results['failed'].append({'instance_id': instance_id, 'error': str(e)})
+                        results['success'].append({
+                            'instance_id': instance_id,
+                            'volume_id': volume_id,
+                            'snapshot_id': snapshot['SnapshotId']
+                        })
+                        logger.info(f"Snapshot {snapshot['SnapshotId']} created for {instance_id}/{volume_id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to backup {instance_id}: {e}")
+                    results['failed'].append({'instance_id': instance_id, 'error': str(e)})
 
             self._send_notification(
                 f"EC2 Backup: {len(results['success'])} snapshots created, {len(results['failed'])} failed"

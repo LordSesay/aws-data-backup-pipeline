@@ -1,9 +1,12 @@
+# All schedule expressions are in UTC
+
 # ── Primary: EC2 Backup Schedule ─────────────────────────────────────
 
 resource "aws_cloudwatch_event_rule" "ec2_backup_schedule" {
   name                = "aws-backup-ec2-schedule"
   description         = "Nightly EBS snapshots for tagged EC2 instances"
   schedule_expression = "cron(0 2 * * ? *)"
+  state               = "ENABLED"
 }
 
 resource "aws_cloudwatch_event_target" "ec2_backup_target" {
@@ -30,6 +33,7 @@ resource "aws_cloudwatch_event_rule" "cleanup_schedule" {
   name                = "aws-backup-cleanup-schedule"
   description         = "Delete expired automated snapshots"
   schedule_expression = "cron(0 4 * * ? *)"
+  state               = "ENABLED"
 }
 
 resource "aws_cloudwatch_event_target" "cleanup_target" {
@@ -56,6 +60,7 @@ resource "aws_cloudwatch_event_rule" "rds_backup_schedule" {
   name                = "aws-backup-rds-schedule"
   description         = "Nightly RDS snapshots (expansion module)"
   schedule_expression = "cron(0 3 * * ? *)"
+  state               = "DISABLED"
 }
 
 resource "aws_cloudwatch_event_target" "rds_backup_target" {
@@ -82,6 +87,7 @@ resource "aws_cloudwatch_event_rule" "s3_backup_schedule" {
   name                = "aws-backup-s3-schedule"
   description         = "Nightly S3 bucket sync (expansion module)"
   schedule_expression = "cron(0 1 * * ? *)"
+  state               = "DISABLED"
 }
 
 resource "aws_cloudwatch_event_target" "s3_backup_target" {

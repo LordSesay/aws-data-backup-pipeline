@@ -57,6 +57,7 @@ resource "aws_iam_role_policy" "backup_lambda_policy" {
         Action = [
           "s3:ListAllMyBuckets",
           "s3:ListBucket",
+          "s3:GetBucketLocation",
           "s3:GetObject",
           "s3:PutObject",
           "s3:PutObjectTagging",

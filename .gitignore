@@ -1,0 +1,71 @@
+# ─────────────────────────────
+# Python
+# ─────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+env/
+
+# ─────────────────────────────
+# Environment variables
+# ─────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─────────────────────────────
+# Terraform
+# ─────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# DO NOT commit real tfvars
+terraform.tfvars
+terraform.tfvars.json
+
+# ─────────────────────────────
+# Lambda build artifacts
+# ─────────────────────────────
+infra/backup_lambda.zip
+
+# ─────────────────────────────
+# Logs
+# ─────────────────────────────
+*.log
+
+# ─────────────────────────────
+# macOS / Windows junk
+# ─────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─────────────────────────────
+# IDEs / Editors
+# ─────────────────────────────
+.vscode/
+.idea/
+
+# ─────────────────────────────
+# Testing artifacts
+# ─────────────────────────────
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# ─────────────────────────────
+# Temporary / sandbox files
+# ─────────────────────────────
+sandbox/

@@ -6,6 +6,7 @@ data "archive_file" "backup_lambda_zip" {
 
 resource "aws_lambda_function" "backup_lambda" {
   function_name = var.lambda_function_name
+  description   = "Event-driven EC2 smart backup function for EBS snapshots and retention cleanup"
   role          = aws_iam_role.lambda_exec_role.arn
   handler       = "lambda_handler.lambda_handler"
   runtime       = "python3.11"
@@ -17,7 +18,6 @@ resource "aws_lambda_function" "backup_lambda" {
 
   environment {
     variables = {
-      AWS_REGION            = var.aws_region
       BACKUP_BUCKET         = var.backup_bucket
       SNS_TOPIC_ARN         = var.sns_topic_arn
       BACKUP_RETENTION_DAYS = tostring(var.backup_retention_days)

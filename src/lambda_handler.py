@@ -1,6 +1,6 @@
 import json
 import logging
-from src.backup_manager import BackupManager
+from backup_manager import BackupManager
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
